@@ -1,26 +1,13 @@
-.gradle
-.idea
-**/build/
-**/target/
-api/out/
-component-test/out/
-importer/out/
-service/out/
-.project
-.classpath
-**/bin
-**/.settings
+# OpenTofu / Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
 
-# Ignore Gradle GUI config
-gradle-app.setting
+# Build artifacts produced by archive_file
+.build/
 
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
-!gradle-wrapper.jar
-
-*.iml
-
-*.log
-
-*.toDelete
-
-*.jar
+# Checkov external module cache
+.external_modules/
