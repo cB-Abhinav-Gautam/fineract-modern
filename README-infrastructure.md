@@ -22,22 +22,52 @@ handled by the load balancer.
 
 ## Design decisions
 
+- **The load balancer is internal.** There is no internet-facing entry point.
+  Callers must already be on the VPC, on a peered network, or arriving over a
+  VPN or Direct Connect.
 - **No NAT gateway.** Every AWS API the tasks and the rotation function use is
   reached over PrivateLink endpoints, so the private subnets have no route to
   the internet.
-- **One customer-managed KMS key** encrypts RDS, MQ, ECR, the log groups, the
-  rotation function's environment and its dead letter queue.
+- **One customer-managed KMS key** (`module.kms`) encrypts RDS, MQ, ECR, the
+  log groups, the rotation function's environment and its dead letter queue.
 - **No IAM users.** Tasks authenticate with task roles, per the `no-iam-users`
   policy.
 - **No SSH anywhere.** Operators use ECS Exec, so nothing listens on port 22.
 - **Signed Lambda artifacts.** The rotation package is signed with AWS Signer
   and the function enforces code signing, so an unsigned artifact is rejected
   at deploy time.
+- **Registry modules where one exists.** The VPC, ALB, RDS, ECR, ACM, KMS, S3
+  and security-group resources come from the Apex-approved
+  `terraform-aws-modules` registry entries, pinned to explicit versions.
+
+## Region
+
+`aws_region` defaults to **`us-east-2`**, matching the region the Apex AWS
+connection is scoped to. The stack registration in Apex is currently set to
+`us-east-1`. These must agree before an apply: a credential scoped to one
+region cannot provision into another. Confirm which region is intended and
+align the stack setting with this default, or override `aws_region`.
 
 ## Required input
 
-`acm_certificate_arn` has no default. Supply the ARN of a certificate in the
-same region covering the hostname that will point at the load balancer.
+The HTTPS listener needs a certificate, and there are two ways to supply one:
+
+- **Let the stack issue it (default).** Set `domain_name` and
+  `route53_zone_name`. The stack requests an ACM certificate, validates it by
+  DNS against the public Route 53 zone, and creates an alias record pointing
+  the hostname at the load balancer.
+- **Bring your own.** Set `acm_certificate_arn` to an existing certificate in
+  the same region. `domain_name` is then optional; without it, clients address
+  the load balancer by its generated DNS name.
+
+A precondition fails the plan with an explicit message if neither option is
+fully specified, rather than failing partway through an apply.
+
+Note that the zone used for validation is a *public* hosted zone while the
+load balancer is *internal*, so the record publishes private addresses in
+public DNS. That is a workable and common arrangement, but if it is not
+acceptable here, move the record to a private zone and supply the certificate
+via `acm_certificate_arn`.
 
 ## MQ credential rotation
 
@@ -55,21 +85,37 @@ This function has not yet been exercised against a live broker. Run one
 rotation manually in a non-production environment before relying on the
 schedule.
 
-## Known scanner findings
+## Verification status
 
-`workspace_verify` reports 231 passing and 5 failing checkov checks. All five
-are false positives and are listed here rather than suppressed in code, since
-suppression comments are not permitted:
+`workspace_verify` passes all four stages:
 
-| Check | Resource | Why it is a false positive |
-| --- | --- | --- |
-| `CKV2_AWS_5` | `aws_security_group.alb` | Attached to the load balancer inside `module.alb`. Checkov does not resolve external modules, so it cannot see the edge. |
-| `CKV2_AWS_5` | `aws_security_group.database` | Attached to the instance inside `module.postgresql`, same reason. |
-| `CKV_AWS_111` | `aws_iam_policy_document.kms` | The `Resource: "*"` in a KMS **key policy** means "this key", not "all keys". It cannot name the key's own ARN, which does not exist until the key is created. |
-| `CKV_AWS_356` | `aws_iam_policy_document.kms` | Same as above. |
-| `CKV_AWS_109` | `aws_iam_policy_document.kms` | Same as above. The root-account statement is the AWS-recommended form; removing it makes the key unmanageable. |
+| Stage | Result |
+| --- | --- |
+| `fmt` | pass |
+| `tflint` | pass |
+| `trivy` | pass — 0 misconfigurations in this configuration |
+| `checkov` | pass — 211 passed, 0 failed, 0 skipped |
 
-The `CKV2_AWS_5` pair is demonstrably a resolution limit: the `service`, `mq`,
-`mq_rotation` and `vpc_endpoints` groups pass the identical check, and the only
-difference is that their consumers are local resources rather than module
-internals.
+No suppression comments are used anywhere in this configuration, and none are
+needed.
+
+Trivy additionally reports two LOW advisory findings (`AWS-0089`, "bucket has
+logging disabled") inside the vendored `terraform-aws-modules/s3-bucket`
+module, for the ALB access-log bucket and the Lambda artifact bucket. These are
+reported against the module's own source rather than this configuration and do
+not fail the stage. Enabling access logging on a bucket whose only purpose is
+to receive access logs would require a further bucket to log into; the finding
+is recorded here rather than suppressed.
+
+Checkov is run without `--download-external-modules`, so it cannot see inside
+registry modules and logs a warning for each one it skips. Enabling that flag
+was evaluated and rejected: it surfaces roughly ten findings located in vendor
+module source that cannot be fixed from this repository.
+
+## Unused public subnets
+
+The VPC creates three public subnets and an internet gateway, but nothing is
+placed in them — the load balancer is internal and sits in the private tier.
+They cost nothing. If no internet-facing component is ever intended here,
+removing `public_subnets` from the VPC module would eliminate the only
+internet-facing path in the account, and is worth deciding on deliberately.
