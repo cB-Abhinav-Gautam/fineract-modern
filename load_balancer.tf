@@ -89,7 +89,7 @@ module "alb" {
       port            = 443
       protocol        = "HTTPS"
       ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-      certificate_arn = var.acm_certificate_arn
+      certificate_arn = local.certificate_arn
 
       forward = {
         target_group_key = "accounting"

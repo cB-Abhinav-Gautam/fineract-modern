@@ -1,6 +1,11 @@
 output "service_url" {
   description = "Public HTTPS base URL for the accounting API."
-  value       = "https://${module.alb.dns_name}${var.service_context_path}"
+  value       = "https://${local.service_host}${var.service_context_path}"
+}
+
+output "certificate_arn" {
+  description = "ACM certificate presented by the HTTPS listener."
+  value       = local.certificate_arn
 }
 
 output "alb_dns_name" {

@@ -3,9 +3,9 @@
 # ---------------------------------------------------------------------------
 
 variable "aws_region" {
-  description = "AWS region that hosts the accounting service."
+  description = "AWS region that hosts the accounting service. Matches the region the Apex AWS connection is scoped to."
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "environment" {
@@ -98,8 +98,21 @@ variable "desired_count" {
 }
 
 variable "acm_certificate_arn" {
-  description = "ARN of an existing ACM certificate for the HTTPS listener. Required: the load balancer terminates TLS and does not serve plain HTTP."
+  description = "ARN of an existing ACM certificate for the HTTPS listener. Leave empty to have the stack issue and DNS-validate its own certificate."
   type        = string
+  default     = ""
+}
+
+variable "domain_name" {
+  description = "Hostname the accounting API is served on, e.g. accounting.example.com. Required unless acm_certificate_arn is set."
+  type        = string
+  default     = ""
+}
+
+variable "route53_zone_name" {
+  description = "Public Route 53 hosted zone containing domain_name, e.g. example.com. Required unless acm_certificate_arn is set."
+  type        = string
+  default     = ""
 }
 
 variable "ingress_cidr_blocks" {
