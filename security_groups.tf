@@ -2,26 +2,34 @@
 # Security groups.
 #
 # Every rule is a reference to another security group rather than a CIDR, with
-# one deliberate exception: HTTPS into the load balancer. Nothing egresses to
-# 0.0.0.0/0 - the tasks reach AWS APIs over PrivateLink, so there is no need.
+# one deliberate exception: HTTPS into the load balancer, which defaults to the
+# VPC's own CIDR. Nothing egresses to 0.0.0.0/0 - the tasks reach AWS APIs over
+# PrivateLink, so there is no need.
 #
 # No rule anywhere opens port 22 or 3389, as required by the
 # no-open-admin-ports policy. There is no SSH path into this stack at all;
 # Fargate tasks are reached with ECS Exec over SSM if needed.
 # ---------------------------------------------------------------------------
 
+locals {
+  # The load balancer is internal, so callers are inside the VPC by default.
+  # Override ingress_cidr_blocks to admit specific peered or on-premises
+  # ranges; leaving it empty keeps ingress scoped to this VPC.
+  alb_ingress_cidrs = length(var.ingress_cidr_blocks) > 0 ? var.ingress_cidr_blocks : [var.vpc_cidr]
+}
+
 # --- Load balancer ---------------------------------------------------------
 
 resource "aws_security_group" "alb" {
   name        = "${local.service_prefix}-alb"
-  description = "Public entry point for the accounting service"
+  description = "Internal entry point for the accounting service"
   vpc_id      = module.vpc.vpc_id
 
   tags = merge(local.common_tags, { Name = "${local.service_prefix}-alb" })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
-  for_each = toset(var.ingress_cidr_blocks)
+  for_each = toset(local.alb_ingress_cidrs)
 
   security_group_id = aws_security_group.alb.id
   description       = "HTTPS from permitted clients"

@@ -1,5 +1,10 @@
 # ---------------------------------------------------------------------------
-# Public entry point.
+# Internal entry point.
+#
+# The accounting service is an internal Fineract CN microservice: it is called
+# by other services in the mesh, not by the public internet. The load balancer
+# is therefore internal and sits in the private subnets, with no public
+# address.
 #
 # TLS terminates at the load balancer; there is no plain-HTTP listener. The
 # health check targets the service context path, which is what the Spring Boot
@@ -68,7 +73,11 @@ module "alb" {
 
   name    = local.service_prefix
   vpc_id  = module.vpc.vpc_id
-  subnets = module.vpc.public_subnets
+  subnets = module.vpc.private_subnets
+
+  # Reachable only from inside the VPC and anything routed into it. A core
+  # banking ledger has no reason to be exposed to the internet.
+  internal = true
 
   # Use the security group defined in security_groups.tf rather than letting
   # the module create one.

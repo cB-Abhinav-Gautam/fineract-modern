@@ -116,9 +116,9 @@ variable "route53_zone_name" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "CIDR blocks permitted to reach the load balancer on HTTPS."
+  description = "CIDR blocks permitted to reach the internal load balancer on HTTPS. Defaults to the VPC CIDR when left empty."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "log_retention_in_days" {
