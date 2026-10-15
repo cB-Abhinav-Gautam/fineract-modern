@@ -122,11 +122,11 @@ module "vpc" {
   default_security_group_ingress = []
   default_security_group_egress  = []
 
-  enable_flow_log                      = true
-  create_flow_log_cloudwatch_log_group = true
-  create_flow_log_cloudwatch_iam_role  = true
-  flow_log_destination_type            = "cloud-watch-logs"
-  flow_log_cloudwatch_log_group_kms_key_id = aws_kms_key.main.arn
+  enable_flow_log                                 = true
+  create_flow_log_cloudwatch_log_group            = true
+  create_flow_log_cloudwatch_iam_role             = true
+  flow_log_destination_type                       = "cloud-watch-logs"
+  flow_log_cloudwatch_log_group_kms_key_id        = aws_kms_key.main.arn
   flow_log_cloudwatch_log_group_retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags
