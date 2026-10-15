@@ -1,0 +1,26 @@
+.gradle
+.idea
+**/build/
+**/target/
+api/out/
+component-test/out/
+importer/out/
+service/out/
+.project
+.classpath
+**/bin
+**/.settings
+
+# Ignore Gradle GUI config
+gradle-app.setting
+
+# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
+!gradle-wrapper.jar
+
+*.iml
+
+*.log
+
+*.toDelete
+
+*.jar
