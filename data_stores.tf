@@ -22,7 +22,7 @@ module "postgresql" {
 
   # Mandatory policy: encryption at rest.
   storage_encrypted = true
-  kms_key_id        = aws_kms_key.main.arn
+  kms_key_id        = module.kms.key_arn
 
   db_name  = var.postgres_database_name
   username = var.postgres_username
@@ -31,13 +31,13 @@ module "postgresql" {
   # No password in code or state: RDS generates it and Secrets Manager
   # rotates it under AWS-managed rotation.
   manage_master_user_password   = true
-  master_user_secret_kms_key_id = aws_kms_key.main.arn
+  master_user_secret_kms_key_id = module.kms.key_arn
 
   iam_database_authentication_enabled = true
 
   multi_az               = true
   db_subnet_group_name   = module.vpc.database_subnet_group_name
-  vpc_security_group_ids = [aws_security_group.database.id]
+  vpc_security_group_ids = [module.database_sg.security_group_id]
   publicly_accessible    = false
 
   backup_retention_period          = 14
@@ -49,7 +49,7 @@ module "postgresql" {
   final_snapshot_identifier_prefix = "${local.service_prefix}-final"
 
   performance_insights_enabled          = true
-  performance_insights_kms_key_id       = aws_kms_key.main.arn
+  performance_insights_kms_key_id       = module.kms.key_arn
   performance_insights_retention_period = 7
 
   create_monitoring_role = true
@@ -101,7 +101,7 @@ resource "random_password" "mq" {
 resource "aws_secretsmanager_secret" "mq" {
   name        = "${local.service_prefix}/mq/app-credential"
   description = "ActiveMQ application credential for ${local.service_prefix}"
-  kms_key_id  = aws_kms_key.main.arn
+  kms_key_id  = module.kms.key_arn
 
   recovery_window_in_days = 30
 
@@ -136,7 +136,7 @@ resource "aws_mq_broker" "fineract" {
   security_groups = [aws_security_group.mq.id]
 
   encryption_options {
-    kms_key_id        = aws_kms_key.main.arn
+    kms_key_id        = module.kms.key_arn
     use_aws_owned_key = false
   }
 
@@ -179,7 +179,7 @@ module "ecr" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
   repository_encryption_type      = "KMS"
-  repository_kms_key              = aws_kms_key.main.arn
+  repository_kms_key              = module.kms.key_arn
   repository_force_delete         = false
 
   create_lifecycle_policy = true

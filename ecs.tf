@@ -9,7 +9,7 @@
 resource "aws_cloudwatch_log_group" "service" {
   name              = "/aws/ecs/${local.service_prefix}"
   retention_in_days = var.log_retention_in_days
-  kms_key_id        = aws_kms_key.main.arn
+  kms_key_id        = module.kms.key_arn
 
   tags = local.common_tags
 }
@@ -17,7 +17,7 @@ resource "aws_cloudwatch_log_group" "service" {
 resource "aws_cloudwatch_log_group" "ecs_exec" {
   name              = "/aws/ecs/${local.service_prefix}/exec"
   retention_in_days = var.log_retention_in_days
-  kms_key_id        = aws_kms_key.main.arn
+  kms_key_id        = module.kms.key_arn
 
   tags = local.common_tags
 }
@@ -32,7 +32,7 @@ resource "aws_ecs_cluster" "main" {
 
   configuration {
     execute_command_configuration {
-      kms_key_id = aws_kms_key.main.arn
+      kms_key_id = module.kms.key_arn
       logging    = "OVERRIDE"
 
       log_configuration {

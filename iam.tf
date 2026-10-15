@@ -60,7 +60,7 @@ data "aws_iam_policy_document" "task_execution_extra" {
       "kms:Decrypt",
       "kms:DescribeKey",
     ]
-    resources = [aws_kms_key.main.arn]
+    resources = [module.kms.key_arn]
   }
 }
 
@@ -115,7 +115,7 @@ data "aws_iam_policy_document" "task" {
       "kms:Decrypt",
       "kms:DescribeKey",
     ]
-    resources = [aws_kms_key.main.arn]
+    resources = [module.kms.key_arn]
   }
 
   # ECS Exec, so operators can get a shell into a task without SSH.

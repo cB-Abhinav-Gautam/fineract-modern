@@ -159,7 +159,7 @@ resource "aws_vpc_security_group_egress_rule" "mq_rotation_https" {
 resource "aws_sqs_queue" "mq_rotation_dlq" {
   name = "${local.service_prefix}-mq-rotation-dlq"
 
-  kms_master_key_id                 = aws_kms_key.main.arn
+  kms_master_key_id                 = module.kms.key_arn
   kms_data_key_reuse_period_seconds = 300
   sqs_managed_sse_enabled           = false
   message_retention_seconds         = 1209600
@@ -196,7 +196,7 @@ resource "aws_sqs_queue_policy" "mq_rotation_dlq" {
 resource "aws_cloudwatch_log_group" "mq_rotation" {
   name              = "/aws/lambda/${local.service_prefix}-mq-rotation"
   retention_in_days = var.log_retention_in_days
-  kms_key_id        = aws_kms_key.main.arn
+  kms_key_id        = module.kms.key_arn
 
   tags = local.common_tags
 }
@@ -274,7 +274,7 @@ data "aws_iam_policy_document" "mq_rotation" {
       "kms:DescribeKey",
       "kms:GenerateDataKey",
     ]
-    resources = [aws_kms_key.main.arn]
+    resources = [module.kms.key_arn]
   }
 
   statement {
@@ -334,7 +334,7 @@ resource "aws_lambda_function" "mq_rotation" {
   reserved_concurrent_executions = 1
 
   # Environment variables are encrypted with the customer-managed key.
-  kms_key_arn = aws_kms_key.main.arn
+  kms_key_arn = module.kms.key_arn
 
   environment {
     variables = {

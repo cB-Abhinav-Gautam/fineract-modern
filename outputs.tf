@@ -55,5 +55,5 @@ output "ecs_cluster_name" {
 
 output "kms_key_arn" {
   description = "Customer-managed key encrypting the stack's data at rest."
-  value       = aws_kms_key.main.arn
+  value       = module.kms.key_arn
 }

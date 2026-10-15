@@ -9,6 +9,12 @@
 # No rule anywhere opens port 22 or 3389, as required by the
 # no-open-admin-ports policy. There is no SSH path into this stack at all;
 # Fargate tasks are reached with ECS Exec over SSM if needed.
+#
+# The groups consumed by external modules (the load balancer and the database)
+# are created with the Apex-approved terraform-aws-modules/security-group
+# module. Rules stay as standalone aws_vpc_security_group_*_rule resources so
+# that the mutual alb <-> service and service <-> database references cannot
+# form a module dependency cycle.
 # ---------------------------------------------------------------------------
 
 locals {
@@ -20,7 +26,10 @@ locals {
 
 # --- Load balancer ---------------------------------------------------------
 
-resource "aws_security_group" "alb" {
+module "alb_sg" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "5.2.0"
+
   name        = "${local.service_prefix}-alb"
   description = "Internal entry point for the accounting service"
   vpc_id      = module.vpc.vpc_id
@@ -31,7 +40,7 @@ resource "aws_security_group" "alb" {
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   for_each = toset(local.alb_ingress_cidrs)
 
-  security_group_id = aws_security_group.alb.id
+  security_group_id = module.alb_sg.security_group_id
   description       = "HTTPS from permitted clients"
   ip_protocol       = "tcp"
   from_port         = 443
@@ -42,7 +51,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_service" {
-  security_group_id            = aws_security_group.alb.id
+  security_group_id            = module.alb_sg.security_group_id
   description                  = "Forward to the accounting tasks"
   ip_protocol                  = "tcp"
   from_port                    = var.service_port
@@ -68,7 +77,7 @@ resource "aws_vpc_security_group_ingress_rule" "service_from_alb" {
   ip_protocol                  = "tcp"
   from_port                    = var.service_port
   to_port                      = var.service_port
-  referenced_security_group_id = aws_security_group.alb.id
+  referenced_security_group_id = module.alb_sg.security_group_id
 
   tags = local.common_tags
 }
@@ -79,7 +88,7 @@ resource "aws_vpc_security_group_egress_rule" "service_to_postgres" {
   ip_protocol                  = "tcp"
   from_port                    = 5432
   to_port                      = 5432
-  referenced_security_group_id = aws_security_group.database.id
+  referenced_security_group_id = module.database_sg.security_group_id
 
   tags = local.common_tags
 }
@@ -119,7 +128,10 @@ resource "aws_vpc_security_group_egress_rule" "service_to_endpoints_cassandra" {
 
 # --- PostgreSQL ------------------------------------------------------------
 
-resource "aws_security_group" "database" {
+module "database_sg" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "5.2.0"
+
   name        = "${local.service_prefix}-database"
   description = "PostgreSQL instance backing the Fineract CN seshat database"
   vpc_id      = module.vpc.vpc_id
@@ -128,7 +140,7 @@ resource "aws_security_group" "database" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "database_from_service" {
-  security_group_id            = aws_security_group.database.id
+  security_group_id            = module.database_sg.security_group_id
   description                  = "PostgreSQL from the accounting tasks"
   ip_protocol                  = "tcp"
   from_port                    = 5432

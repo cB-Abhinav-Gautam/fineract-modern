@@ -33,63 +33,57 @@ locals {
 # master-user secret, Keyspaces tables, the MQ broker, ECR image layers,
 # CloudWatch log groups, the rotation function's environment and its dead
 # letter queue.
+#
+# Uses the Apex-approved terraform-aws-modules/kms module. The module's
+# default policy grants the account root key administration, which is what
+# lets IAM policies in this account delegate key use to the task and rotation
+# roles; the extra statement below is the direct grant CloudWatch Logs needs.
 # ---------------------------------------------------------------------------
 
-data "aws_iam_policy_document" "kms" {
-  # Without this the key is unmanageable: it lets IAM policies in this account
-  # delegate key use, which is how the task and rotation roles get access.
-  statement {
-    sid    = "EnableAccountAdministration"
-    effect = "Allow"
+module "kms" {
+  source  = "terraform-aws-modules/kms/aws"
+  version = "3.1.0"
 
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
-    }
-
-    actions   = ["kms:*"]
-    resources = ["*"]
-  }
-
-  # CloudWatch Logs uses the key directly, so it needs an explicit grant.
-  statement {
-    sid    = "AllowCloudWatchLogs"
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["logs.${var.aws_region}.amazonaws.com"]
-    }
-
-    actions = [
-      "kms:Encrypt",
-      "kms:Decrypt",
-      "kms:ReEncrypt*",
-      "kms:GenerateDataKey*",
-      "kms:DescribeKey",
-    ]
-    resources = ["*"]
-
-    condition {
-      test     = "ArnLike"
-      variable = "kms:EncryptionContext:aws:logs:arn"
-      values   = ["arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:*"]
-    }
-  }
-}
-
-resource "aws_kms_key" "main" {
   description             = "Encrypts data at rest for ${local.service_prefix}"
   deletion_window_in_days = 30
   enable_key_rotation     = true
-  policy                  = data.aws_iam_policy_document.kms.json
+  enable_default_policy   = true
+
+  key_statements = [
+    {
+      sid    = "AllowCloudWatchLogs"
+      effect = "Allow"
+
+      principals = [
+        {
+          type        = "Service"
+          identifiers = ["logs.${var.aws_region}.amazonaws.com"]
+        }
+      ]
+
+      actions = [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey",
+      ]
+
+      resources = ["*"]
+
+      conditions = [
+        {
+          test     = "ArnLike"
+          variable = "kms:EncryptionContext:aws:logs:arn"
+          values   = ["arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:*"]
+        }
+      ]
+    }
+  ]
+
+  aliases = [local.service_prefix]
 
   tags = local.common_tags
-}
-
-resource "aws_kms_alias" "main" {
-  name          = "alias/${local.service_prefix}"
-  target_key_id = aws_kms_key.main.key_id
 }
 
 # ---------------------------------------------------------------------------
@@ -126,7 +120,7 @@ module "vpc" {
   create_flow_log_cloudwatch_log_group            = true
   create_flow_log_cloudwatch_iam_role             = true
   flow_log_destination_type                       = "cloud-watch-logs"
-  flow_log_cloudwatch_log_group_kms_key_id        = aws_kms_key.main.arn
+  flow_log_cloudwatch_log_group_kms_key_id        = module.kms.key_arn
   flow_log_cloudwatch_log_group_retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags

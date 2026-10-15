@@ -82,7 +82,7 @@ module "alb" {
   # Use the security group defined in security_groups.tf rather than letting
   # the module create one.
   create_security_group = false
-  security_groups       = [aws_security_group.alb.id]
+  security_groups       = [module.alb_sg.security_group_id]
 
   enable_deletion_protection = true
   drop_invalid_header_fields = true
