@@ -109,9 +109,14 @@ variable "ingress_cidr_blocks" {
 }
 
 variable "log_retention_in_days" {
-  description = "CloudWatch Logs retention for the service and rotation function."
+  description = "CloudWatch Logs retention for the service and rotation function. At least 365 days, so the logs cover a full audit period."
   type        = number
-  default     = 90
+  default     = 365
+
+  validation {
+    condition     = var.log_retention_in_days >= 365
+    error_message = "Retain logs for at least 365 days."
+  }
 }
 
 # ---------------------------------------------------------------------------

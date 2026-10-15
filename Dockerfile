@@ -17,9 +17,8 @@
 # under the License.
 #
 FROM amazoncorretto:21-alpine AS builder
-RUN mkdir builddir
-COPY . builddir
-WORKDIR builddir
+WORKDIR /build
+COPY . /build
 RUN ./gradlew publishToMavenLocal
 
 
@@ -29,9 +28,23 @@ ARG accounting_port=2025
 
 ENV server.max-http-header-size=16384 \
     cassandra.clusterName="Test Cluster" \
-    server.port=$accounting_port
+    server.port=$accounting_port \
+    ACCOUNTING_PORT=$accounting_port
 
-WORKDIR /tmp
-COPY --from=builder /builddir/service/build/libs/service-*-boot.jar ./accounting-service-boot.jar
+# Run as an unprivileged account rather than root. The task definition mounts
+# an ephemeral volume at /tmp, so the JVM still has somewhere to write while
+# the rest of the root filesystem stays read-only.
+RUN addgroup -S fineract && adduser -S -G fineract -h /opt/fineract fineract
+
+WORKDIR /opt/fineract
+COPY --from=builder --chown=fineract:fineract \
+    /build/service/build/libs/service-*-boot.jar ./accounting-service-boot.jar
+
+USER fineract
+
+EXPOSE $accounting_port
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD wget -q -O /dev/null "http://127.0.0.1:${ACCOUNTING_PORT}/accounting/v1" || exit 1
 
 CMD ["java", "-jar", "accounting-service-boot.jar"]
